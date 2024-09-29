@@ -1,11 +1,11 @@
-const admin = require("firebase-admin");
-const dotenv = require("dotenv");
+import dotenv from "dotenv";
+import admin from "firebase-admin";
 
 dotenv.config();
 
 // Initialize Firebase Admin
 admin.initializeApp({
-  credential: admin.credential.cert(require(process.env.FIREBASE_CREDENTIALS)),
+  credential: admin.credential.cert(process.env.FIREBASE_CREDENTIALS),
 });
 
-module.exports = admin;
+export default admin;

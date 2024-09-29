@@ -1,22 +1,38 @@
-const amqplib = require("amqplib");
-const firebase = require("./firebase");
-const db = require("../models/db");
-const { saveFcmJob } = require("../models/fcmJob");
-const dotenv = require("dotenv");
+import amqplib from "amqplib";
+import dotenv from "dotenv";
+import firebase from "./firebase.js";
+import { saveFcmJob } from "../models/fcmJob.js";
 dotenv.config();
 
-async function consumeMessages() {
+async function connectRabbitMQ() {
+  for (let i = 0; i < 10; i++) {
+    try {
+      const conn = await amqplib.connect(
+        process.env.RABBITMQ_URL || "amqp://guest:guest@rabbitmq:5672"
+      );
+      console.log("Connected to RabbitMQ");
+      return conn;
+    } catch (err) {
+      console.error("Error connecting to RabbitMQ, retrying in 5 seconds...", err);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+  }
+  throw new Error("Failed to connect to RabbitMQ after 10 attempts.");
+}
+
+connectRabbitMQ();
+
+export async function consumeMessages() {
   try {
-    const conn = await amqplib.connect(process.env.RABBITMQ_URL);
+    const conn = await connectRabbitMQ();
     const channel = await conn.createChannel();
     await channel.assertQueue(process.env.RABBITMQ_QUEUE, { durable: true });
-
-    console.log(`Waiting for messages in queue: ${process.env.RABBITMQ_QUEUE}`);
-
+    console.log(
+      `|\n|\n|\n|\n|\n|Waiting for messages in queue: ${process.env.RABBITMQ_QUEUE}\n|\n|\n|\n|\n|`
+    );
     channel.consume(process.env.RABBITMQ_QUEUE, async (msg) => {
       if (msg !== null) {
         const content = JSON.parse(msg.content.toString());
-
         // Validate the message
         if (validateMessage(content)) {
           // Acknowledge the message
@@ -27,6 +43,7 @@ async function consumeMessages() {
 
           // Log success and save to database
           const deliverAt = new Date().toISOString();
+
           await saveFcmJob(content.identifier, deliverAt);
 
           // Publish result to RabbitMQ
@@ -53,15 +70,30 @@ function validateMessage(message) {
 }
 
 async function sendFcm(message) {
+  // * uncomment this code to proceed to send notification to specific deviceID
+  //   const fcmMessage = {
+  //     notification: {
+  //       title: "Incoming message",
+  //       body: message.text,
+  //     },
+  //     token: message.deviceId,
+  //   };
+
   const fcmMessage = {
     notification: {
       title: "Incoming message",
       body: message.text,
     },
-    token: message.deviceId,
+    topic: message.topic,
   };
 
-  return firebase.messaging().send(fcmMessage);
+  try {
+    const response = await firebase.messaging().send(fcmMessage);
+    console.log("Successfully sent message to topic:", response);
+    return response;
+  } catch (error) {
+    console.error("Error sending topic message:", error);
+  }
 }
 
 async function publishResult(identifier, deliverAt) {
@@ -79,7 +111,3 @@ async function publishResult(identifier, deliverAt) {
 
   console.log(`Published result to ${topicName}:`, payload);
 }
-
-module.exports = {
-  consumeMessages,
-};

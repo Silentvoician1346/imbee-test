@@ -1,7 +1,7 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const dotenv = require("dotenv");
-const fcmService = require("./services/fcmService");
+import express from "express";
+import bodyParser from "body-parser";
+import dotenv from "dotenv";
+import { consumeMessages } from "./services/fmcService.js";
 
 // load env
 dotenv.config();
@@ -11,7 +11,7 @@ const app = express();
 app.use(bodyParser.json());
 
 // start the srvice
-fcmService.consumeMessages();
+consumeMessages();
 
 // listening on port 3000
 app.listen(3000, () => {
