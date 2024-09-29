@@ -1,0 +1,33 @@
+version: '3'
+services:
+  rabbitmq:
+    image: rabbitmq:management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - mynetwork
+  mysql:
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: fcm_service
+    ports:
+      - "3306:3306"
+    networks:
+      - mynetwork
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - MYSQL_HOST=mysql
+    depends_on:
+      - rabbitmq
+      - mysql
+    networks:
+      - mynetwork
+    command: npm start
+networks:
+  mynetwork:
